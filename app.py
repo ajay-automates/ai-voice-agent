@@ -1,10 +1,9 @@
 """
 AI Voice Agent — Full LLMOps Pipeline (Lightweight)
 Voice: OpenAI Whisper (STT) + GPT-4o-mini + OpenAI TTS
-RAG: OpenAI Embeddings + Numpy cosine similarity (no heavy deps)
+RAG: OpenAI Embeddings + Numpy cosine similarity
 Observability: LangSmith tracing
-Safety: Guardrails for prompt injection
-Prompts: Versioned templates
+Safety: Guardrails | Prompts: Versioned templates
 """
 
 import os
@@ -18,6 +17,7 @@ from openai import OpenAI
 from langsmith import traceable
 from langsmith.wrappers import wrap_openai
 from dotenv import load_dotenv
+from pypdf import PdfReader
 
 from rag import ingest_text, get_context_for_query, clear_store, get_doc_count
 from guardrails import check_guardrails
@@ -43,10 +43,69 @@ def load_prompt(version="v2_voice"):
     return "You are a helpful customer support agent. Answer using only the provided context."
 
 
+# ============================================================
+# DOCUMENT ENDPOINTS
+# ============================================================
 @app.post("/api/upload-text")
 async def upload_text_endpoint(text: str = Form(...)):
     num_chunks = ingest_text(text.strip(), source="pasted_text")
     return {"status": "ok", "chunks": num_chunks, "length": len(text.strip())}
+
+
+@app.post("/api/upload-pdf")
+async def upload_pdf_endpoint(file: UploadFile = File(...)):
+    """Extract text from PDF and ingest into knowledge base."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+    try:
+        contents = await file.read()
+        reader = PdfReader(io.BytesIO(contents))
+        text = ""
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+        num_chunks = ingest_text(text.strip(), source=file.filename)
+        return {"status": "ok", "chunks": num_chunks, "pages": len(reader.pages), "filename": file.filename}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF processing failed: {str(e)}")
+
+
+@app.post("/api/upload-file")
+async def upload_file_endpoint(file: UploadFile = File(...)):
+    """Upload TXT or PDF file."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    fname = file.filename.lower()
+    contents = await file.read()
+    if fname.endswith(".pdf"):
+        try:
+            reader = PdfReader(io.BytesIO(contents))
+            text = ""
+            for page in reader.pages:
+                pt = page.extract_text()
+                if pt:
+                    text += pt + "\n"
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="No text in PDF")
+            num_chunks = ingest_text(text.strip(), source=file.filename)
+            return {"status": "ok", "chunks": num_chunks, "pages": len(reader.pages), "filename": file.filename}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    elif fname.endswith(".txt") or fname.endswith(".md"):
+        text = contents.decode("utf-8", errors="ignore").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="Empty file")
+        num_chunks = ingest_text(text, source=file.filename)
+        return {"status": "ok", "chunks": num_chunks, "filename": file.filename}
+    else:
+        raise HTTPException(status_code=400, detail="Supported: PDF, TXT, MD")
 
 
 @app.post("/api/clear")
@@ -62,6 +121,9 @@ async def get_stats():
     return {"doc_count": get_doc_count(), "conversation_turns": len(conversation_history) // 2}
 
 
+# ============================================================
+# VOICE PIPELINE
+# ============================================================
 @traceable(name="whisper_transcribe", run_type="llm")
 def transcribe_audio(audio_bytes):
     audio_file = io.BytesIO(audio_bytes)
