@@ -6,147 +6,75 @@
 <title>AI Voice Agent</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  /* ============================================================
-     DESIGN SYSTEM — DUAL THEME
-     Dark: Cinematic noir with indigo accents
-     Light: Warm parchment with terracotta accents
-     ============================================================ */
-
-  /* DARK THEME (default) */
   :root, [data-theme="dark"] {
-    --bg: #08080c;
-    --surface: #111118;
-    --surface2: #1a1a24;
-    --border: rgba(255,255,255,0.06);
-    --border-hover: rgba(255,255,255,0.12);
-    --text: #e8e8f0;
-    --text2: #6b6b80;
-    --text3: #3a3a50;
-    --accent: #6366f1;
-    --accent-soft: rgba(99,102,241,0.15);
-    --accent-border: rgba(99,102,241,0.2);
-    --accent-hover: rgba(99,102,241,0.5);
-    --green: #22c55e;
-    --amber: #f59e0b;
-    --glow1: rgba(99,102,241,0.12);
-    --glow2: rgba(139,92,246,0.08);
-    --user-bubble: var(--accent);
-    --user-bubble-text: #fff;
-    --agent-bubble: #1e1e2e;
-    --agent-bubble-text: var(--text);
-    --noise-opacity: 0.03;
-    --shadow: 0 2px 20px rgba(0,0,0,0.3);
-    --toggle-bg: #1a1a24;
-    --toggle-icon-show: block;
-    --toggle-icon-hide: none;
+    --bg: #08080c;--surface: #111118;--surface2: #1a1a24;--border: rgba(255,255,255,0.06);--border-hover: rgba(255,255,255,0.12);--text: #e8e8f0;--text2: #6b6b80;--text3: #3a3a50;--accent: #6366f1;--accent-soft: rgba(99,102,241,0.15);--accent-border: rgba(99,102,241,0.2);--accent-hover: rgba(99,102,241,0.5);--green: #22c55e;--amber: #f59e0b;--glow1: rgba(99,102,241,0.12);--glow2: rgba(139,92,246,0.08);--noise-opacity: 0.03;--shadow: 0 2px 20px rgba(0,0,0,0.3);
   }
-
-  /* LIGHT THEME */
   [data-theme="light"] {
-    --bg: #f8f6f1;
-    --surface: #ffffff;
-    --surface2: #f0ede6;
-    --border: rgba(0,0,0,0.06);
-    --border-hover: rgba(0,0,0,0.12);
-    --text: #1a1a2e;
-    --text2: #7a7a8c;
-    --text3: #b0b0be;
-    --accent: #c2410c;
-    --accent-soft: rgba(194,65,12,0.08);
-    --accent-border: rgba(194,65,12,0.15);
-    --accent-hover: rgba(194,65,12,0.3);
-    --green: #16a34a;
-    --amber: #d97706;
-    --glow1: rgba(194,65,12,0.06);
-    --glow2: rgba(234,88,12,0.04);
-    --user-bubble: #c2410c;
-    --user-bubble-text: #fff;
-    --agent-bubble: #f5f0e8;
-    --agent-bubble-text: #1a1a2e;
-    --noise-opacity: 0.015;
-    --shadow: 0 2px 20px rgba(0,0,0,0.06);
-    --toggle-bg: #f0ede6;
-    --toggle-icon-show: none;
-    --toggle-icon-hide: block;
+    --bg: #f8f6f1;--surface: #ffffff;--surface2: #f0ede6;--border: rgba(0,0,0,0.06);--border-hover: rgba(0,0,0,0.12);--text: #1a1a2e;--text2: #7a7a8c;--text3: #b0b0be;--accent: #c2410c;--accent-soft: rgba(194,65,12,0.08);--accent-border: rgba(194,65,12,0.15);--accent-hover: rgba(194,65,12,0.3);--green: #16a34a;--amber: #d97706;--glow1: rgba(194,65,12,0.06);--glow2: rgba(234,88,12,0.04);--noise-opacity: 0.015;--shadow: 0 2px 20px rgba(0,0,0,0.06);
   }
-
   *{margin:0;padding:0;box-sizing:border-box}
   body{min-height:100vh;background:var(--bg);font-family:'Outfit',sans-serif;color:var(--text);overflow-x:hidden;transition:background 0.5s,color 0.4s}
   ::selection{background:var(--accent);color:#fff}
-
-  /* Noise texture */
   body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:var(--noise-opacity)}
-
-  /* Ambient glows */
   .glow-orb{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;opacity:0.5;transition:background 0.8s}
   .glow-1{width:600px;height:600px;background:radial-gradient(circle,var(--glow1),transparent 70%);top:-200px;right:-100px}
   .glow-2{width:400px;height:400px;background:radial-gradient(circle,var(--glow2),transparent 70%);bottom:-100px;left:-50px}
-
   .app{max-width:760px;margin:0 auto;padding:32px 24px;position:relative;z-index:1}
-
-  /* === NAV === */
   .nav{display:flex;justify-content:space-between;align-items:center;padding:16px 0;margin-bottom:48px;border-bottom:1px solid var(--border)}
   .nav-left{display:flex;align-items:center;gap:10px}
   .nav-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
   .nav-name{font-weight:600;font-size:0.95rem;letter-spacing:-0.3px}
   .nav-right{display:flex;align-items:center;gap:12px}
   .nav-badge{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:1.5px;color:var(--text2);background:var(--surface2);padding:4px 10px;border-radius:100px;border:1px solid var(--border)}
-
-  /* Theme toggle */
   .theme-toggle{width:40px;height:40px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.3s;position:relative;overflow:hidden}
   .theme-toggle:hover{border-color:var(--accent-hover);transform:scale(1.08)}
-  .theme-toggle:active{transform:scale(0.95)}
   .toggle-sun,.toggle-moon{position:absolute;transition:all 0.4s cubic-bezier(0.68,-0.55,0.27,1.55)}
   .toggle-sun{opacity:0;transform:rotate(-90deg) scale(0.5)}
   .toggle-moon{opacity:1;transform:rotate(0) scale(1)}
   [data-theme="light"] .toggle-sun{opacity:1;transform:rotate(0) scale(1)}
   [data-theme="light"] .toggle-moon{opacity:0;transform:rotate(90deg) scale(0.5)}
-
-  /* === HERO === */
   .hero{text-align:center;margin-bottom:48px}
   .hero-badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:3px;color:var(--accent);text-transform:uppercase;background:var(--accent-soft);border:1px solid var(--accent-border);padding:6px 16px;border-radius:100px;margin-bottom:20px}
   .hero h1{font-size:3.4rem;font-weight:700;letter-spacing:-2px;line-height:1.05;margin-bottom:16px;background:linear-gradient(135deg,var(--text) 0%,var(--text2) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{color:var(--text2);font-size:1.05rem;line-height:1.6;max-width:480px;margin:0 auto}
-
-  /* === KB CARD === */
   .kb-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 24px;margin-bottom:28px;transition:all 0.3s;box-shadow:var(--shadow)}
-  .kb-card:focus-within{border-color:var(--accent-border)}
   .kb-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
   .kb-title{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:2px;color:var(--text2);text-transform:uppercase}
   .kb-status{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;display:flex;align-items:center;gap:6px}
   .kb-status .dot{width:6px;height:6px;border-radius:50%;animation:statusPulse 2s ease infinite}
-  .kb-status.empty .dot{background:var(--amber)}
-  .kb-status.empty{color:var(--amber)}
-  .kb-status.loaded .dot{background:var(--green)}
-  .kb-status.loaded{color:var(--green)}
+  .kb-status.empty .dot{background:var(--amber)}.kb-status.empty{color:var(--amber)}
+  .kb-status.loaded .dot{background:var(--green)}.kb-status.loaded{color:var(--green)}
   .kb-textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;color:var(--text);font-family:'Outfit',sans-serif;font-size:0.88rem;line-height:1.6;resize:vertical;min-height:80px;transition:border-color 0.2s}
   .kb-textarea:focus{outline:none;border-color:var(--accent-hover)}
   .kb-textarea::placeholder{color:var(--text3)}
-  .kb-actions{display:flex;justify-content:flex-end;margin-top:12px}
+  .kb-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:1px}
+  .kb-divider::before,.kb-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+  .file-upload{position:relative;width:100%;border:1.5px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s}
+  .file-upload:hover{border-color:var(--accent-border);background:var(--accent-soft)}
+  .file-upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .file-upload-text{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--text2);letter-spacing:0.5px}
+  .file-upload-text strong{color:var(--accent)}
+  .file-name{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--green);margin-top:8px}
+  .kb-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
   .btn{padding:9px 20px;border:none;border-radius:8px;font-family:'Outfit',sans-serif;font-weight:600;font-size:0.8rem;cursor:pointer;transition:all 0.2s}
   .btn-accent{background:var(--accent);color:#fff}
   .btn-accent:hover{filter:brightness(1.15);transform:translateY(-1px)}
   .btn-accent:disabled{background:var(--surface2);color:var(--text3);cursor:not-allowed;transform:none}
-
-  /* === CHAT === */
+  .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
+  .btn-outline:hover{border-color:var(--accent-border);color:var(--accent)}
   .chat{background:var(--surface);border:1px solid var(--border);border-radius:16px;min-height:220px;max-height:380px;overflow-y:auto;margin-bottom:28px;padding:6px;box-shadow:var(--shadow)}
-  .chat::-webkit-scrollbar{width:4px}
-  .chat::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
+  .chat::-webkit-scrollbar{width:4px}.chat::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
   .chat-empty{display:flex;align-items:center;justify-content:center;height:180px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:1px}
   .msg{padding:14px 18px;animation:msgIn 0.4s cubic-bezier(0.16,1,0.3,1)}
   .msg+.msg{border-top:1px solid var(--border)}
   .msg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
   .msg-role{font-family:'IBM Plex Mono',monospace;font-size:0.58rem;letter-spacing:1.5px;text-transform:uppercase}
-  .msg-role.user{color:var(--accent)}
-  .msg-role.agent{color:var(--green)}
+  .msg-role.user{color:var(--accent)}.msg-role.agent{color:var(--green)}
   .msg-time{font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:var(--text3)}
   .msg-body{font-size:0.92rem;line-height:1.6;color:var(--text)}
   .msg-metrics{font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:var(--text3);margin-top:6px;display:flex;gap:16px}
-
   @keyframes msgIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
   @keyframes statusPulse{0%,100%{opacity:1}50%{opacity:0.4}}
-
-  /* === MIC ORB === */
   .mic-section{text-align:center;padding:36px 0 24px}
   .orb-container{position:relative;width:120px;height:120px;margin:0 auto 20px}
   .orb-ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--accent-border);transition:all 0.4s}
@@ -163,23 +91,17 @@
   .mic-orb svg{stroke:var(--accent);transition:all 0.3s}
   .mic-orb.recording svg{stroke:#fff}
   .mic-orb.processing svg{stroke:var(--text3);animation:spin 1.5s linear infinite}
-
   @keyframes ringPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:0.5}}
   @keyframes spin{to{transform:rotate(360deg)}}
-
   .mic-label{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:2px;color:var(--text2);text-transform:uppercase;transition:color 0.3s}
   .mic-label.recording{color:var(--accent);font-weight:500}
   .mic-label.processing{color:var(--amber)}
-
-  /* === TEXT INPUT === */
   .input-bar{display:flex;gap:8px;margin-top:20px}
   .input-bar input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font-family:'Outfit',sans-serif;font-size:0.88rem;transition:border-color 0.2s;box-shadow:var(--shadow)}
   .input-bar input:focus{outline:none;border-color:var(--accent-hover)}
   .input-bar input::placeholder{color:var(--text3)}
   .input-bar button{padding:12px 20px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:600;font-size:0.82rem;cursor:pointer;transition:all 0.2s}
   .input-bar button:hover{filter:brightness(1.15)}
-
-  /* === FOOTER === */
   .foot{text-align:center;padding:32px 0 16px;border-top:1px solid var(--border);margin-top:40px}
   .foot-text{font-family:'IBM Plex Mono',monospace;font-size:0.55rem;letter-spacing:1.5px;color:var(--text3)}
   .foot-text a{color:var(--accent);text-decoration:none}
@@ -189,32 +111,14 @@
 <body>
 <div class="glow-orb glow-1"></div>
 <div class="glow-orb glow-2"></div>
-
 <div class="app">
   <nav class="nav">
-    <div class="nav-left">
-      <div class="nav-dot"></div>
-      <span class="nav-name">Voice Agent</span>
-    </div>
+    <div class="nav-left"><div class="nav-dot"></div><span class="nav-name">Voice Agent</span></div>
     <div class="nav-right">
       <span class="nav-badge">AI EMPLOYEE</span>
-      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
-        <!-- Moon (visible in dark mode) -->
-        <svg class="toggle-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-        <!-- Sun (visible in light mode) -->
-        <svg class="toggle-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <svg class="toggle-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="toggle-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       </button>
     </div>
   </nav>
@@ -225,34 +129,39 @@
     <p>Upload your business knowledge. Hold the mic and ask anything. Get instant, accurate voice responses powered by your documents.</p>
   </div>
 
+  <!-- Knowledge Base -->
   <div class="kb-card">
     <div class="kb-header">
       <span class="kb-title">Knowledge Base</span>
       <span class="kb-status empty" id="docStatus"><span class="dot"></span>NO DOCS</span>
     </div>
+
+    <!-- File Upload -->
+    <div class="file-upload" id="fileDropZone">
+      <input type="file" id="fileInput" accept=".pdf,.txt,.md" onchange="handleFileSelect(event)">
+      <div class="file-upload-text">Drop a <strong>PDF</strong> or <strong>TXT</strong> file here, or click to browse</div>
+      <div class="file-name" id="fileName"></div>
+    </div>
+
+    <div class="kb-divider">OR PASTE TEXT</div>
+
+    <!-- Text Paste -->
     <textarea class="kb-textarea" id="docInput" placeholder="Paste your business FAQ, policies, product info, pricing..."></textarea>
+
     <div class="kb-actions">
+      <button class="btn btn-outline" id="clearBtn" onclick="clearKB()">Clear</button>
       <button class="btn btn-accent" id="uploadBtn" onclick="uploadDocs()">Load Documents</button>
     </div>
   </div>
 
-  <div class="chat" id="chatArea">
-    <div class="chat-empty" id="chatEmpty">CONVERSATION WILL APPEAR HERE</div>
-  </div>
+  <div class="chat" id="chatArea"><div class="chat-empty" id="chatEmpty">CONVERSATION WILL APPEAR HERE</div></div>
 
   <div class="mic-section">
     <div class="orb-container">
       <div class="mic-orb" id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </div>
-      <div class="orb-ring"></div>
-      <div class="orb-ring-2"></div>
-      <div class="orb-ring-3"></div>
+      <div class="orb-ring"></div><div class="orb-ring-2"></div><div class="orb-ring-3"></div>
     </div>
     <div class="mic-label" id="micStatus">HOLD TO SPEAK</div>
   </div>
@@ -264,130 +173,94 @@
 
   <div class="foot">
     <div class="foot-text">BUILT BY <a href="https://github.com/ajay-automates">AJAY KUMAR REDDY</a></div>
-    <div class="foot-tech">
-      <span>WHISPER STT</span>
-      <span>GPT-4o</span>
-      <span>OPENAI TTS</span>
-      <span>LANGSMITH</span>
-    </div>
+    <div class="foot-tech"><span>WHISPER STT</span><span>GPT-4o</span><span>OPENAI TTS</span><span>RAG</span><span>LANGSMITH</span></div>
   </div>
 </div>
 
 <script>
-/* ============================================================
-   THEME TOGGLE
-   ============================================================ */
-function toggleTheme(){
-  const html=document.documentElement;
-  const current=html.getAttribute('data-theme');
-  const next=current==='dark'?'light':'dark';
-  html.setAttribute('data-theme',next);
-  localStorage.setItem('theme',next);
-}
+function toggleTheme(){const h=document.documentElement;const c=h.getAttribute('data-theme');const n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
+(function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s)})();
 
-// Restore saved theme
-(function(){
-  const saved=localStorage.getItem('theme');
-  if(saved)document.documentElement.setAttribute('data-theme',saved);
-})();
-
-/* ============================================================
-   VOICE & CHAT LOGIC
-   ============================================================ */
-let mediaRecorder=null,audioChunks=[],isRecording=false;
+let mediaRecorder=null,audioChunks=[],isRecording=false,selectedFile=null;
 const micBtn=document.getElementById('micBtn'),micStatus=document.getElementById('micStatus'),chatArea=document.getElementById('chatArea'),chatEmpty=document.getElementById('chatEmpty');
 
+function handleFileSelect(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  selectedFile=file;
+  document.getElementById('fileName').textContent=file.name+' ('+Math.round(file.size/1024)+'KB)';
+}
+
 async function uploadDocs(){
-  const text=document.getElementById('docInput').value.trim();
-  if(!text)return;
   const btn=document.getElementById('uploadBtn');
   btn.disabled=true;btn.textContent='Loading...';
   try{
-    const form=new FormData();form.append('text',text);
-    const res=await fetch('/api/upload-text',{method:'POST',body:form});
-    const data=await res.json();
+    if(selectedFile){
+      const form=new FormData();
+      form.append('file',selectedFile);
+      const res=await fetch('/api/upload-file',{method:'POST',body:form});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.detail||'Upload failed');
+      updateStatus('READY ('+data.chunks+' chunks from '+data.filename+')');
+      selectedFile=null;
+      document.getElementById('fileName').textContent='';
+      document.getElementById('fileInput').value='';
+    } else {
+      const text=document.getElementById('docInput').value.trim();
+      if(!text){btn.disabled=false;btn.textContent='Load Documents';return}
+      const form=new FormData();form.append('text',text);
+      const res=await fetch('/api/upload-text',{method:'POST',body:form});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.detail||'Upload failed');
+      updateStatus('READY ('+data.chunks+' chunks)');
+    }
+  }catch(e){
     const st=document.getElementById('docStatus');
-    st.innerHTML='<span class="dot"></span>READY ('+data.length+' chars)';
-    st.className='kb-status loaded';
-  }catch(e){document.getElementById('docStatus').innerHTML='<span class="dot"></span>ERROR'}
+    st.innerHTML='<span class="dot"></span>ERROR: '+e.message;
+    st.className='kb-status empty';
+  }
   btn.disabled=false;btn.textContent='Load Documents';
+}
+
+function updateStatus(msg){
+  const st=document.getElementById('docStatus');
+  st.innerHTML='<span class="dot"></span>'+msg;
+  st.className='kb-status loaded';
+}
+
+async function clearKB(){
+  await fetch('/api/clear',{method:'POST'});
+  const st=document.getElementById('docStatus');
+  st.innerHTML='<span class="dot"></span>NO DOCS';
+  st.className='kb-status empty';
+  document.getElementById('docInput').value='';
+  selectedFile=null;
+  document.getElementById('fileName').textContent='';
+  document.getElementById('fileInput').value='';
+  chatArea.innerHTML='<div class="chat-empty">CONVERSATION WILL APPEAR HERE</div>';
 }
 
 async function startRecording(){
   if(isRecording)return;
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'});
-    audioChunks=[];
-    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data)};
-    mediaRecorder.start();
-    isRecording=true;
-    micBtn.classList.add('recording');
-    micStatus.textContent='LISTENING...';
-    micStatus.className='mic-label recording';
-  }catch(e){micStatus.textContent='MIC ACCESS DENIED'}
+  try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'});audioChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data)};mediaRecorder.start();isRecording=true;micBtn.classList.add('recording');micStatus.textContent='LISTENING...';micStatus.className='mic-label recording'}catch(e){micStatus.textContent='MIC ACCESS DENIED'}
 }
 
 async function stopRecording(){
-  if(!isRecording||!mediaRecorder)return;
-  isRecording=false;
-  micBtn.classList.remove('recording');
-  micBtn.classList.add('processing');
-  micStatus.textContent='THINKING...';
-  micStatus.className='mic-label processing';
-  mediaRecorder.stop();
-  mediaRecorder.onstop=async()=>{
-    const audioBlob=new Blob(audioChunks,{type:'audio/webm'});
-    mediaRecorder.stream.getTracks().forEach(t=>t.stop());
-    await sendVoice(audioBlob);
-    micBtn.classList.remove('processing');
-    micStatus.textContent='HOLD TO SPEAK';
-    micStatus.className='mic-label';
-  };
+  if(!isRecording||!mediaRecorder)return;isRecording=false;micBtn.classList.remove('recording');micBtn.classList.add('processing');micStatus.textContent='THINKING...';micStatus.className='mic-label processing';
+  mediaRecorder.stop();mediaRecorder.onstop=async()=>{const audioBlob=new Blob(audioChunks,{type:'audio/webm'});mediaRecorder.stream.getTracks().forEach(t=>t.stop());await sendVoice(audioBlob);micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label'}
 }
 
 async function sendVoice(audioBlob){
-  const form=new FormData();
-  form.append('audio',audioBlob,'recording.webm');
-  try{
-    const res=await fetch('/api/voice',{method:'POST',body:form});
-    if(!res.ok){const err=await res.json();addMsg('agent','Error: '+(err.detail||'Something went wrong'));return}
-    const userText=res.headers.get('X-User-Text')||'';
-    const agentText=res.headers.get('X-Agent-Text')||'';
-    const stt=res.headers.get('X-STT-Time')||'-';
-    const llm=res.headers.get('X-LLM-Time')||'-';
-    const tts=res.headers.get('X-TTS-Time')||'-';
-    const total=res.headers.get('X-Total-Time')||'-';
-    if(userText)addMsg('user',userText);
-    addMsg('agent',agentText,'STT '+stt+'s  LLM '+llm+'s  TTS '+tts+'s  Total '+total+'s');
-    const blob=await res.blob();
-    new Audio(URL.createObjectURL(blob)).play();
-  }catch(e){addMsg('agent','Connection error: '+e.message)}
+  const form=new FormData();form.append('audio',audioBlob,'recording.webm');
+  try{const res=await fetch('/api/voice',{method:'POST',body:form});if(!res.ok){const err=await res.json();addMsg('agent','Error: '+(err.detail||'Something went wrong'));return}
+  const userText=res.headers.get('X-User-Text')||'';const agentText=res.headers.get('X-Agent-Text')||'';const stt=res.headers.get('X-STT-Time')||'-';const rag=res.headers.get('X-RAG-Time')||'-';const llm=res.headers.get('X-LLM-Time')||'-';const tts=res.headers.get('X-TTS-Time')||'-';const total=res.headers.get('X-Total-Time')||'-';
+  if(userText)addMsg('user',userText);addMsg('agent',agentText,'STT '+stt+'s  RAG '+rag+'s  LLM '+llm+'s  TTS '+tts+'s  Total '+total+'s');
+  const blob=await res.blob();new Audio(URL.createObjectURL(blob)).play()}catch(e){addMsg('agent','Connection error: '+e.message)}
 }
 
-async function sendText(){
-  const inp=document.getElementById('textInput');
-  const t=inp.value.trim();if(!t)return;inp.value='';
-  addMsg('user',t);
-  try{
-    const form=new FormData();form.append('text',t);
-    const res=await fetch('/api/text',{method:'POST',body:form});
-    const d=await res.json();
-    addMsg('agent',d.answer);
-  }catch(e){addMsg('agent','Error: '+e.message)}
-}
+async function sendText(){const inp=document.getElementById('textInput');const t=inp.value.trim();if(!t)return;inp.value='';addMsg('user',t);try{const form=new FormData();form.append('text',t);const res=await fetch('/api/text',{method:'POST',body:form});const d=await res.json();addMsg('agent',d.answer)}catch(e){addMsg('agent','Error: '+e.message)}}
 
-function addMsg(role,text,metrics){
-  if(chatEmpty)chatEmpty.remove();
-  const d=document.createElement('div');d.className='msg';
-  const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  let h='<div class="msg-head"><span class="msg-role '+role+'">'+(role==='user'?'YOU':'AI AGENT')+'</span><span class="msg-time">'+now+'</span></div>';
-  h+='<div class="msg-body">'+esc(text)+'</div>';
-  if(metrics)h+='<div class="msg-metrics"><span>'+metrics+'</span></div>';
-  d.innerHTML=h;
-  chatArea.appendChild(d);
-  chatArea.scrollTop=chatArea.scrollHeight;
-}
+function addMsg(role,text,metrics){if(chatEmpty&&chatEmpty.parentNode)chatEmpty.remove();const d=document.createElement('div');d.className='msg';const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});let h='<div class="msg-head"><span class="msg-role '+role+'">'+(role==='user'?'YOU':'AI AGENT')+'</span><span class="msg-time">'+now+'</span></div>';h+='<div class="msg-body">'+esc(text)+'</div>';if(metrics)h+='<div class="msg-metrics"><span>'+metrics+'</span></div>';d.innerHTML=h;chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight}
 
 function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 </script>
