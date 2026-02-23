@@ -1,7 +1,10 @@
 """
-AI Voice Agent - Real-time voice conversation with documents.
-OpenAI Whisper (STT) + GPT-4o-mini (reasoning) + OpenAI TTS (voice output).
-Full observability via LangSmith tracing.
+AI Voice Agent — Full LLMOps Pipeline
+Voice: OpenAI Whisper (STT) + GPT-4o-mini (reasoning) + OpenAI TTS (voice)
+RAG: LangChain + ChromaDB + HuggingFace embeddings
+Observability: LangSmith tracing on every step
+Safety: Guardrails for prompt injection + harmful content
+Prompts: Versioned templates (v1_simple, v2_voice)
 """
 
 import os
@@ -9,48 +12,72 @@ import io
 import time
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from langsmith import traceable
 from langsmith.wrappers import wrap_openai
 from dotenv import load_dotenv
 
+from rag import ingest_text, get_context_for_query, clear_vectorstore, get_doc_count
+from guardrails import check_guardrails
+
 load_dotenv()
 
-# LangSmith config
+# LangSmith
 os.environ.setdefault("LANGSMITH_TRACING", "true")
 os.environ.setdefault("LANGSMITH_PROJECT", "ai-voice-agent")
 
-# Wrap OpenAI client with LangSmith tracing
+# OpenAI (wrapped for LangSmith auto-tracing)
 raw_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 client = wrap_openai(raw_client)
 
-document_context = "No documents uploaded yet. Please upload business documents to enable AI-powered answers."
+# Conversation history
 conversation_history = []
+
+# Prompt version (default v2)
+PROMPT_VERSION = "v2_voice"
 
 app = FastAPI(title="AI Voice Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+def load_prompt(version="v2_voice"):
+    """Load versioned prompt template."""
+    prompt_path = Path(__file__).parent / "prompts" / f"{version}.txt"
+    if prompt_path.exists():
+        return prompt_path.read_text()
+    return "You are a helpful customer support agent. Answer using only the provided context."
+
+
+# ============================================================
+# DOCUMENT ENDPOINTS
+# ============================================================
 @app.post("/api/upload-text")
 async def upload_text(text: str = Form(...)):
-    global document_context
-    document_context = text.strip()
-    return {"status": "ok", "length": len(document_context)}
+    """Ingest text: chunk, embed, store in ChromaDB."""
+    num_chunks = ingest_text(text.strip(), source="pasted_text")
+    return {"status": "ok", "chunks": num_chunks, "length": len(text.strip())}
 
 
 @app.post("/api/clear")
 async def clear_docs():
-    global document_context, conversation_history
-    document_context = "No documents uploaded yet."
+    global conversation_history
+    clear_vectorstore()
     conversation_history = []
     return {"status": "cleared"}
 
 
+@app.get("/api/stats")
+async def get_stats():
+    return {"doc_count": get_doc_count(), "conversation_turns": len(conversation_history) // 2}
+
+
+# ============================================================
+# VOICE PIPELINE (full LLMOps)
+# ============================================================
 @traceable(name="whisper_transcribe", run_type="llm")
 def transcribe_audio(audio_bytes):
-    """Transcribe audio with Whisper - traced by LangSmith."""
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = "recording.webm"
     transcript = raw_client.audio.transcriptions.create(
@@ -59,17 +86,28 @@ def transcribe_audio(audio_bytes):
     return transcript.text.strip()
 
 
+@traceable(name="rag_retrieve", run_type="retriever")
+def retrieve_context(query):
+    """Retrieve relevant document chunks from ChromaDB."""
+    context, sources = get_context_for_query(query, k=4)
+    return context, sources
+
+
 @traceable(name="generate_answer", run_type="chain")
-def generate_answer(user_text, doc_context, history):
-    """Generate answer with GPT-4o-mini - traced by LangSmith."""
-    system_prompt = f"""You are a helpful, friendly customer support agent. Answer questions using the provided business documents. Be concise - keep answers to 2-3 sentences since this will be spoken aloud. If the answer is not in the documents, say so briefly.
+def generate_answer(user_text, context, sources, history):
+    """Generate answer using GPT-4o-mini with RAG context."""
+    system_prompt = load_prompt(PROMPT_VERSION)
 
-Business Documents:
+    full_prompt = f"""{system_prompt}
+
+Retrieved Context (from knowledge base):
 ---
-{doc_context[:8000]}
----"""
+{context}
+---
 
-    messages = [{"role": "system", "content": system_prompt}]
+Sources: {', '.join(sources) if sources else 'None'}"""
+
+    messages = [{"role": "system", "content": full_prompt}]
     for h in history[-6:]:
         messages.append(h)
     messages.append({"role": "user", "content": user_text})
@@ -82,7 +120,6 @@ Business Documents:
 
 @traceable(name="generate_speech", run_type="tool")
 def generate_speech(text):
-    """Generate TTS audio - traced by LangSmith."""
     tts_response = raw_client.audio.speech.create(
         model="tts-1", voice="nova", input=text, response_format="mp3",
     )
@@ -91,54 +128,71 @@ def generate_speech(text):
 
 @traceable(name="voice_pipeline", run_type="chain")
 def voice_pipeline(audio_bytes):
-    """Full voice pipeline: STT -> LLM -> TTS. All traced."""
+    """Full pipeline: STT -> Guardrails -> RAG Retrieve -> LLM -> TTS. All traced."""
     global conversation_history
-    start_time = time.time()
+    start = time.time()
 
     # Step 1: Transcribe
     stt_start = time.time()
     user_text = transcribe_audio(audio_bytes)
     stt_time = time.time() - stt_start
-
     if not user_text:
-        return None, None, None, {}
+        return None, None, None, None, {}
 
-    # Step 2: Generate answer
+    # Step 2: Guardrails
+    guard = check_guardrails(user_text)
+    if not guard["allowed"]:
+        blocked_answer = f"I can't process that request. {guard['reason']}."
+        tts_bytes = generate_speech(blocked_answer)
+        return user_text, blocked_answer, tts_bytes, [], {
+            "stt_time": round(stt_time, 2), "blocked": True,
+            "block_reason": guard["reason"], "total_time": round(time.time() - start, 2),
+        }
+
+    # Step 3: RAG Retrieve
+    rag_start = time.time()
+    context, sources = retrieve_context(user_text)
+    rag_time = time.time() - rag_start
+
+    # Step 4: Generate answer
     llm_start = time.time()
-    answer = generate_answer(user_text, document_context, conversation_history)
+    answer = generate_answer(user_text, context, sources, conversation_history)
     llm_time = time.time() - llm_start
 
     conversation_history.append({"role": "user", "content": user_text})
     conversation_history.append({"role": "assistant", "content": answer})
 
-    # Step 3: Generate speech
+    # Step 5: TTS
     tts_start = time.time()
     audio_response = generate_speech(answer)
     tts_time = time.time() - tts_start
 
-    total_time = time.time() - start_time
-
     metrics = {
         "stt_time": round(stt_time, 2),
+        "rag_time": round(rag_time, 2),
         "llm_time": round(llm_time, 2),
         "tts_time": round(tts_time, 2),
-        "total_time": round(total_time, 2),
+        "total_time": round(time.time() - start, 2),
+        "chunks_retrieved": len(sources),
+        "sources": sources,
+        "blocked": False,
     }
 
-    return user_text, answer, audio_response, metrics
+    return user_text, answer, audio_response, sources, metrics
 
 
 @app.post("/api/voice")
 async def voice_conversation(audio: UploadFile = File(...)):
     audio_bytes = await audio.read()
-
     try:
-        user_text, answer, audio_response, metrics = voice_pipeline(audio_bytes)
+        user_text, answer, audio_response, sources, metrics = voice_pipeline(audio_bytes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     if not user_text:
         raise HTTPException(status_code=400, detail="Could not understand audio")
+
+    src_str = ", ".join(sources) if sources else ""
 
     return StreamingResponse(
         io.BytesIO(audio_response),
@@ -146,11 +200,14 @@ async def voice_conversation(audio: UploadFile = File(...)):
         headers={
             "X-User-Text": user_text.replace('\n', ' ')[:200],
             "X-Agent-Text": answer.replace('\n', ' ')[:500],
-            "X-STT-Time": str(metrics["stt_time"]),
-            "X-LLM-Time": str(metrics["llm_time"]),
-            "X-TTS-Time": str(metrics["tts_time"]),
-            "X-Total-Time": str(metrics["total_time"]),
-            "Access-Control-Expose-Headers": "X-User-Text, X-Agent-Text, X-STT-Time, X-LLM-Time, X-TTS-Time, X-Total-Time",
+            "X-Sources": src_str[:200],
+            "X-STT-Time": str(metrics.get("stt_time", 0)),
+            "X-RAG-Time": str(metrics.get("rag_time", 0)),
+            "X-LLM-Time": str(metrics.get("llm_time", 0)),
+            "X-TTS-Time": str(metrics.get("tts_time", 0)),
+            "X-Total-Time": str(metrics.get("total_time", 0)),
+            "X-Blocked": str(metrics.get("blocked", False)),
+            "Access-Control-Expose-Headers": "X-User-Text, X-Agent-Text, X-Sources, X-STT-Time, X-RAG-Time, X-LLM-Time, X-TTS-Time, X-Total-Time, X-Blocked",
         },
     )
 
@@ -158,14 +215,22 @@ async def voice_conversation(audio: UploadFile = File(...)):
 @app.post("/api/text")
 async def text_conversation(text: str = Form(...)):
     global conversation_history
-    system_prompt = f"""You are a helpful customer support agent. Answer using the business documents. Be concise.
 
-Documents:
+    guard = check_guardrails(text)
+    if not guard["allowed"]:
+        return {"answer": f"I can't process that request. {guard['reason']}.", "blocked": True}
+
+    context, sources = retrieve_context(text)
+
+    system_prompt = load_prompt(PROMPT_VERSION)
+    full_prompt = f"""{system_prompt}
+
+Context:
 ---
-{document_context[:8000]}
+{context}
 ---"""
 
-    messages = [{"role": "system", "content": system_prompt}]
+    messages = [{"role": "system", "content": full_prompt}]
     for h in conversation_history[-6:]:
         messages.append(h)
     messages.append({"role": "user", "content": text})
@@ -176,7 +241,7 @@ Documents:
     answer = completion.choices[0].message.content.strip()
     conversation_history.append({"role": "user", "content": text})
     conversation_history.append({"role": "assistant", "content": answer})
-    return {"answer": answer}
+    return {"answer": answer, "sources": sources, "blocked": False}
 
 
 @app.get("/")
