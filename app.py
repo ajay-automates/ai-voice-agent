@@ -1,10 +1,10 @@
 """
-AI Voice Agent — Full LLMOps Pipeline
-Voice: OpenAI Whisper (STT) + GPT-4o-mini (reasoning) + OpenAI TTS (voice)
-RAG: LangChain + ChromaDB + HuggingFace embeddings
-Observability: LangSmith tracing on every step
-Safety: Guardrails for prompt injection + harmful content
-Prompts: Versioned templates (v1_simple, v2_voice)
+AI Voice Agent — Full LLMOps Pipeline (Lightweight)
+Voice: OpenAI Whisper (STT) + GPT-4o-mini + OpenAI TTS
+RAG: OpenAI Embeddings + Numpy cosine similarity (no heavy deps)
+Observability: LangSmith tracing
+Safety: Guardrails for prompt injection
+Prompts: Versioned templates
 """
 
 import os
@@ -19,43 +19,32 @@ from langsmith import traceable
 from langsmith.wrappers import wrap_openai
 from dotenv import load_dotenv
 
-from rag import ingest_text, get_context_for_query, clear_vectorstore, get_doc_count
+from rag import ingest_text, get_context_for_query, clear_store, get_doc_count
 from guardrails import check_guardrails
 
 load_dotenv()
 
-# LangSmith
 os.environ.setdefault("LANGSMITH_TRACING", "true")
 os.environ.setdefault("LANGSMITH_PROJECT", "ai-voice-agent")
 
-# OpenAI (wrapped for LangSmith auto-tracing)
 raw_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 client = wrap_openai(raw_client)
 
-# Conversation history
 conversation_history = []
-
-# Prompt version (default v2)
-PROMPT_VERSION = "v2_voice"
 
 app = FastAPI(title="AI Voice Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 def load_prompt(version="v2_voice"):
-    """Load versioned prompt template."""
     prompt_path = Path(__file__).parent / "prompts" / f"{version}.txt"
     if prompt_path.exists():
         return prompt_path.read_text()
     return "You are a helpful customer support agent. Answer using only the provided context."
 
 
-# ============================================================
-# DOCUMENT ENDPOINTS
-# ============================================================
 @app.post("/api/upload-text")
-async def upload_text(text: str = Form(...)):
-    """Ingest text: chunk, embed, store in ChromaDB."""
+async def upload_text_endpoint(text: str = Form(...)):
     num_chunks = ingest_text(text.strip(), source="pasted_text")
     return {"status": "ok", "chunks": num_chunks, "length": len(text.strip())}
 
@@ -63,7 +52,7 @@ async def upload_text(text: str = Form(...)):
 @app.post("/api/clear")
 async def clear_docs():
     global conversation_history
-    clear_vectorstore()
+    clear_store()
     conversation_history = []
     return {"status": "cleared"}
 
@@ -73,9 +62,6 @@ async def get_stats():
     return {"doc_count": get_doc_count(), "conversation_turns": len(conversation_history) // 2}
 
 
-# ============================================================
-# VOICE PIPELINE (full LLMOps)
-# ============================================================
 @traceable(name="whisper_transcribe", run_type="llm")
 def transcribe_audio(audio_bytes):
     audio_file = io.BytesIO(audio_bytes)
@@ -88,19 +74,16 @@ def transcribe_audio(audio_bytes):
 
 @traceable(name="rag_retrieve", run_type="retriever")
 def retrieve_context(query):
-    """Retrieve relevant document chunks from ChromaDB."""
     context, sources = get_context_for_query(query, k=4)
     return context, sources
 
 
 @traceable(name="generate_answer", run_type="chain")
 def generate_answer(user_text, context, sources, history):
-    """Generate answer using GPT-4o-mini with RAG context."""
-    system_prompt = load_prompt(PROMPT_VERSION)
-
+    system_prompt = load_prompt("v2_voice")
     full_prompt = f"""{system_prompt}
 
-Retrieved Context (from knowledge base):
+Retrieved Context:
 ---
 {context}
 ---
@@ -128,18 +111,15 @@ def generate_speech(text):
 
 @traceable(name="voice_pipeline", run_type="chain")
 def voice_pipeline(audio_bytes):
-    """Full pipeline: STT -> Guardrails -> RAG Retrieve -> LLM -> TTS. All traced."""
     global conversation_history
     start = time.time()
 
-    # Step 1: Transcribe
     stt_start = time.time()
     user_text = transcribe_audio(audio_bytes)
     stt_time = time.time() - stt_start
     if not user_text:
         return None, None, None, None, {}
 
-    # Step 2: Guardrails
     guard = check_guardrails(user_text)
     if not guard["allowed"]:
         blocked_answer = f"I can't process that request. {guard['reason']}."
@@ -149,12 +129,10 @@ def voice_pipeline(audio_bytes):
             "block_reason": guard["reason"], "total_time": round(time.time() - start, 2),
         }
 
-    # Step 3: RAG Retrieve
     rag_start = time.time()
     context, sources = retrieve_context(user_text)
     rag_time = time.time() - rag_start
 
-    # Step 4: Generate answer
     llm_start = time.time()
     answer = generate_answer(user_text, context, sources, conversation_history)
     llm_time = time.time() - llm_start
@@ -162,22 +140,16 @@ def voice_pipeline(audio_bytes):
     conversation_history.append({"role": "user", "content": user_text})
     conversation_history.append({"role": "assistant", "content": answer})
 
-    # Step 5: TTS
     tts_start = time.time()
     audio_response = generate_speech(answer)
     tts_time = time.time() - tts_start
 
     metrics = {
-        "stt_time": round(stt_time, 2),
-        "rag_time": round(rag_time, 2),
-        "llm_time": round(llm_time, 2),
-        "tts_time": round(tts_time, 2),
+        "stt_time": round(stt_time, 2), "rag_time": round(rag_time, 2),
+        "llm_time": round(llm_time, 2), "tts_time": round(tts_time, 2),
         "total_time": round(time.time() - start, 2),
-        "chunks_retrieved": len(sources),
-        "sources": sources,
-        "blocked": False,
+        "chunks_retrieved": len(sources), "sources": sources, "blocked": False,
     }
-
     return user_text, answer, audio_response, sources, metrics
 
 
@@ -188,15 +160,11 @@ async def voice_conversation(audio: UploadFile = File(...)):
         user_text, answer, audio_response, sources, metrics = voice_pipeline(audio_bytes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
     if not user_text:
         raise HTTPException(status_code=400, detail="Could not understand audio")
-
     src_str = ", ".join(sources) if sources else ""
-
     return StreamingResponse(
-        io.BytesIO(audio_response),
-        media_type="audio/mp3",
+        io.BytesIO(audio_response), media_type="audio/mp3",
         headers={
             "X-User-Text": user_text.replace('\n', ' ')[:200],
             "X-Agent-Text": answer.replace('\n', ' ')[:500],
@@ -215,26 +183,16 @@ async def voice_conversation(audio: UploadFile = File(...)):
 @app.post("/api/text")
 async def text_conversation(text: str = Form(...)):
     global conversation_history
-
     guard = check_guardrails(text)
     if not guard["allowed"]:
         return {"answer": f"I can't process that request. {guard['reason']}.", "blocked": True}
-
     context, sources = retrieve_context(text)
-
-    system_prompt = load_prompt(PROMPT_VERSION)
-    full_prompt = f"""{system_prompt}
-
-Context:
----
-{context}
----"""
-
+    system_prompt = load_prompt("v2_voice")
+    full_prompt = f"""{system_prompt}\n\nContext:\n---\n{context}\n---"""
     messages = [{"role": "system", "content": full_prompt}]
     for h in conversation_history[-6:]:
         messages.append(h)
     messages.append({"role": "user", "content": text})
-
     completion = client.chat.completions.create(
         model="gpt-4o-mini", messages=messages, max_tokens=300, temperature=0.3,
     )
@@ -252,6 +210,5 @@ async def index():
 
 if __name__ == "__main__":
     import uvicorn
-    print("AI Voice Agent starting on http://localhost:8000")
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
