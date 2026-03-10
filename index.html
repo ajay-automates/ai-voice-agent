@@ -7,10 +7,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root, [data-theme="dark"] {
-    --bg: #08080c;--surface: #111118;--surface2: #1a1a24;--border: rgba(255,255,255,0.06);--border-hover: rgba(255,255,255,0.12);--text: #e8e8f0;--text2: #6b6b80;--text3: #3a3a50;--accent: #6366f1;--accent-soft: rgba(99,102,241,0.15);--accent-border: rgba(99,102,241,0.2);--accent-hover: rgba(99,102,241,0.5);--green: #22c55e;--amber: #f59e0b;--glow1: rgba(99,102,241,0.12);--glow2: rgba(139,92,246,0.08);--noise-opacity: 0.03;--shadow: 0 2px 20px rgba(0,0,0,0.3);
+    --bg:#08080c;--surface:#111118;--surface2:#1a1a24;--border:rgba(255,255,255,0.06);--border-hover:rgba(255,255,255,0.12);--text:#e8e8f0;--text2:#6b6b80;--text3:#3a3a50;--accent:#6366f1;--accent-soft:rgba(99,102,241,0.15);--accent-border:rgba(99,102,241,0.2);--accent-hover:rgba(99,102,241,0.5);--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--glow1:rgba(99,102,241,0.12);--glow2:rgba(139,92,246,0.08);--noise-opacity:0.03;--shadow:0 2px 20px rgba(0,0,0,0.3);
   }
   [data-theme="light"] {
-    --bg: #f8f6f1;--surface: #ffffff;--surface2: #f0ede6;--border: rgba(0,0,0,0.06);--border-hover: rgba(0,0,0,0.12);--text: #1a1a2e;--text2: #7a7a8c;--text3: #b0b0be;--accent: #c2410c;--accent-soft: rgba(194,65,12,0.08);--accent-border: rgba(194,65,12,0.15);--accent-hover: rgba(194,65,12,0.3);--green: #16a34a;--amber: #d97706;--glow1: rgba(194,65,12,0.06);--glow2: rgba(234,88,12,0.04);--noise-opacity: 0.015;--shadow: 0 2px 20px rgba(0,0,0,0.06);
+    --bg:#f8f6f1;--surface:#ffffff;--surface2:#f0ede6;--border:rgba(0,0,0,0.06);--border-hover:rgba(0,0,0,0.12);--text:#1a1a2e;--text2:#7a7a8c;--text3:#b0b0be;--accent:#c2410c;--accent-soft:rgba(194,65,12,0.08);--accent-border:rgba(194,65,12,0.15);--accent-hover:rgba(194,65,12,0.3);--green:#16a34a;--amber:#d97706;--red:#dc2626;--glow1:rgba(194,65,12,0.06);--glow2:rgba(234,88,12,0.04);--noise-opacity:0.015;--shadow:0 2px 20px rgba(0,0,0,0.06);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{min-height:100vh;background:var(--bg);font-family:'Outfit',sans-serif;color:var(--text);overflow-x:hidden;transition:background 0.5s,color 0.4s}
@@ -62,7 +62,8 @@
   .btn-accent:disabled{background:var(--surface2);color:var(--text3);cursor:not-allowed;transform:none}
   .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
   .btn-outline:hover{border-color:var(--accent-border);color:var(--accent)}
-  .chat{background:var(--surface);border:1px solid var(--border);border-radius:16px;min-height:220px;max-height:380px;overflow-y:auto;margin-bottom:28px;padding:6px;box-shadow:var(--shadow)}
+  /* Chat */
+  .chat{background:var(--surface);border:1px solid var(--border);border-radius:16px;min-height:220px;max-height:500px;overflow-y:auto;margin-bottom:28px;padding:6px;box-shadow:var(--shadow)}
   .chat::-webkit-scrollbar{width:4px}.chat::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
   .chat-empty{display:flex;align-items:center;justify-content:center;height:180px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:1px}
   .msg{padding:14px 18px;animation:msgIn 0.4s cubic-bezier(0.16,1,0.3,1)}
@@ -72,9 +73,37 @@
   .msg-role.user{color:var(--accent)}.msg-role.agent{color:var(--green)}
   .msg-time{font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:var(--text3)}
   .msg-body{font-size:0.92rem;line-height:1.6;color:var(--text)}
-  .msg-metrics{font-family:'IBM Plex Mono',monospace;font-size:0.55rem;color:var(--text3);margin-top:6px;display:flex;gap:16px}
+  /* Confidence */
+  .msg-confidence{margin-top:10px}
+  .conf-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .conf-label{font-family:'IBM Plex Mono',monospace;font-size:0.52rem;color:var(--text3);letter-spacing:1px;min-width:76px}
+  .conf-bar-wrap{flex:1;min-width:80px;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+  .conf-bar{height:100%;border-radius:2px;transition:width 0.6s ease}
+  .conf-bar.high{background:var(--green)}.conf-bar.mid{background:var(--amber)}.conf-bar.low{background:var(--red)}
+  .conf-pct{font-family:'IBM Plex Mono',monospace;font-size:0.52rem;min-width:30px;text-align:right}
+  .conf-pct.high{color:var(--green)}.conf-pct.mid{color:var(--amber)}.conf-pct.low{color:var(--red)}
+  .grounded-badge{display:inline-flex;align-items:center;gap:3px;font-family:'IBM Plex Mono',monospace;font-size:0.5rem;letter-spacing:1px;padding:2px 8px;border-radius:100px;border:1px solid;white-space:nowrap}
+  .grounded-badge.yes{color:var(--green);border-color:rgba(34,197,94,0.3);background:rgba(34,197,94,0.07)}
+  .grounded-badge.no{color:var(--red);border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.07)}
+  /* Sources */
+  .msg-sources{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+  .source-badge{font-family:'IBM Plex Mono',monospace;font-size:0.48rem;letter-spacing:0.5px;padding:2px 8px;border-radius:100px;border:1px solid var(--border);color:var(--text2);background:var(--surface2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .source-badge.relevant{border-color:rgba(34,197,94,0.3);color:var(--green);background:rgba(34,197,94,0.06)}
+  .source-badge.partial{border-color:rgba(245,158,11,0.3);color:var(--amber);background:rgba(245,158,11,0.06)}
+  /* Pipeline trace */
+  .pipeline-toggle{font-family:'IBM Plex Mono',monospace;font-size:0.52rem;letter-spacing:1px;color:var(--text3);cursor:pointer;background:none;border:none;padding:8px 0 0;display:flex;align-items:center;gap:4px;transition:color 0.2s}
+  .pipeline-toggle:hover{color:var(--accent)}
+  .pipeline-toggle .arrow{transition:transform 0.2s;display:inline-block;font-size:0.45rem}
+  .pipeline-toggle.open .arrow{transform:rotate(90deg)}
+  .pipeline-trace{display:none;margin-top:8px;border-left:2px solid var(--border);padding-left:10px}
+  .pipeline-trace.open{display:block}
+  .trace-step{font-family:'IBM Plex Mono',monospace;font-size:0.52rem;color:var(--text3);padding:3px 0;line-height:1.6}
+  .trace-step strong{color:var(--text2)}
+  /* Metrics */
+  .msg-metrics{font-family:'IBM Plex Mono',monospace;font-size:0.5rem;color:var(--text3);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap}
   @keyframes msgIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
   @keyframes statusPulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  /* Mic */
   .mic-section{text-align:center;padding:36px 0 24px}
   .orb-container{position:relative;width:120px;height:120px;margin:0 auto 20px}
   .orb-ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--accent-border);transition:all 0.4s}
@@ -115,7 +144,7 @@
   <nav class="nav">
     <div class="nav-left"><div class="nav-dot"></div><span class="nav-name">Voice Agent</span></div>
     <div class="nav-right">
-      <span class="nav-badge">AI EMPLOYEE</span>
+      <span class="nav-badge">AGENTIC RAG</span>
       <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
         <svg class="toggle-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="toggle-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -126,7 +155,7 @@
   <div class="hero">
     <div class="hero-badge">REAL-TIME VOICE AI</div>
     <h1>Talk to your<br>AI Employee</h1>
-    <p>Upload your business knowledge. Hold the mic and ask anything. Get instant, accurate voice responses powered by your documents.</p>
+    <p>Upload your business knowledge. Hold the mic and ask anything. Get instant, verified voice responses powered by your documents.</p>
   </div>
 
   <!-- Knowledge Base -->
@@ -135,19 +164,13 @@
       <span class="kb-title">Knowledge Base</span>
       <span class="kb-status empty" id="docStatus"><span class="dot"></span>NO DOCS</span>
     </div>
-
-    <!-- File Upload -->
     <div class="file-upload" id="fileDropZone">
       <input type="file" id="fileInput" accept=".pdf,.txt,.md" onchange="handleFileSelect(event)">
       <div class="file-upload-text">Drop a <strong>PDF</strong> or <strong>TXT</strong> file here, or click to browse</div>
       <div class="file-name" id="fileName"></div>
     </div>
-
     <div class="kb-divider">OR PASTE TEXT</div>
-
-    <!-- Text Paste -->
     <textarea class="kb-textarea" id="docInput" placeholder="Paste your business FAQ, policies, product info, pricing..."></textarea>
-
     <div class="kb-actions">
       <button class="btn btn-outline" id="clearBtn" onclick="clearKB()">Clear</button>
       <button class="btn btn-accent" id="uploadBtn" onclick="uploadDocs()">Load Documents</button>
@@ -173,73 +196,55 @@
 
   <div class="foot">
     <div class="foot-text">BUILT BY <a href="https://github.com/ajay-automates">AJAY KUMAR REDDY</a></div>
-    <div class="foot-tech"><span>WHISPER STT</span><span>GPT-4o</span><span>OPENAI TTS</span><span>RAG</span><span>LANGSMITH</span></div>
+    <div class="foot-tech"><span>WHISPER STT</span><span>GPT-4o-mini</span><span>OPENAI TTS</span><span>AGENTIC RAG</span><span>LANGSMITH</span></div>
   </div>
 </div>
 
 <script>
-function toggleTheme(){const h=document.documentElement;const c=h.getAttribute('data-theme');const n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function toggleTheme(){const h=document.documentElement,c=h.getAttribute('data-theme'),n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
 (function(){const s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s)})();
 
-let mediaRecorder=null,audioChunks=[],isRecording=false,selectedFile=null;
-const micBtn=document.getElementById('micBtn'),micStatus=document.getElementById('micStatus'),chatArea=document.getElementById('chatArea'),chatEmpty=document.getElementById('chatEmpty');
+// ── State ─────────────────────────────────────────────────────────────────────
+let mediaRecorder=null,audioChunks=[],isRecording=false,selectedFile=null,traceCounter=0;
+const micBtn=document.getElementById('micBtn'),micStatus=document.getElementById('micStatus'),chatArea=document.getElementById('chatArea');
 
-function handleFileSelect(e){
-  const file=e.target.files[0];
-  if(!file)return;
-  selectedFile=file;
-  document.getElementById('fileName').textContent=file.name+' ('+Math.round(file.size/1024)+'KB)';
-}
+// ── KB Upload ─────────────────────────────────────────────────────────────────
+function handleFileSelect(e){const file=e.target.files[0];if(!file)return;selectedFile=file;document.getElementById('fileName').textContent=file.name+' ('+Math.round(file.size/1024)+'KB)'}
 
 async function uploadDocs(){
-  const btn=document.getElementById('uploadBtn');
-  btn.disabled=true;btn.textContent='Loading...';
+  const btn=document.getElementById('uploadBtn');btn.disabled=true;btn.textContent='Loading...';
   try{
     if(selectedFile){
-      const form=new FormData();
-      form.append('file',selectedFile);
+      const form=new FormData();form.append('file',selectedFile);
       const res=await fetch('/api/upload-file',{method:'POST',body:form});
-      const data=await res.json();
-      if(!res.ok)throw new Error(data.detail||'Upload failed');
+      const data=await res.json();if(!res.ok)throw new Error(data.detail||'Upload failed');
       updateStatus('READY ('+data.chunks+' chunks from '+data.filename+')');
-      selectedFile=null;
-      document.getElementById('fileName').textContent='';
-      document.getElementById('fileInput').value='';
-    } else {
+      selectedFile=null;document.getElementById('fileName').textContent='';document.getElementById('fileInput').value='';
+    }else{
       const text=document.getElementById('docInput').value.trim();
       if(!text){btn.disabled=false;btn.textContent='Load Documents';return}
       const form=new FormData();form.append('text',text);
       const res=await fetch('/api/upload-text',{method:'POST',body:form});
-      const data=await res.json();
-      if(!res.ok)throw new Error(data.detail||'Upload failed');
+      const data=await res.json();if(!res.ok)throw new Error(data.detail||'Upload failed');
       updateStatus('READY ('+data.chunks+' chunks)');
     }
   }catch(e){
-    const st=document.getElementById('docStatus');
-    st.innerHTML='<span class="dot"></span>ERROR: '+e.message;
-    st.className='kb-status empty';
+    const st=document.getElementById('docStatus');st.innerHTML='<span class="dot"></span>ERROR: '+e.message;st.className='kb-status empty';
   }
   btn.disabled=false;btn.textContent='Load Documents';
 }
 
-function updateStatus(msg){
-  const st=document.getElementById('docStatus');
-  st.innerHTML='<span class="dot"></span>'+msg;
-  st.className='kb-status loaded';
-}
+function updateStatus(msg){const st=document.getElementById('docStatus');st.innerHTML='<span class="dot"></span>'+msg;st.className='kb-status loaded'}
 
 async function clearKB(){
   await fetch('/api/clear',{method:'POST'});
-  const st=document.getElementById('docStatus');
-  st.innerHTML='<span class="dot"></span>NO DOCS';
-  st.className='kb-status empty';
-  document.getElementById('docInput').value='';
-  selectedFile=null;
-  document.getElementById('fileName').textContent='';
-  document.getElementById('fileInput').value='';
+  const st=document.getElementById('docStatus');st.innerHTML='<span class="dot"></span>NO DOCS';st.className='kb-status empty';
+  document.getElementById('docInput').value='';selectedFile=null;document.getElementById('fileName').textContent='';document.getElementById('fileInput').value='';
   chatArea.innerHTML='<div class="chat-empty">CONVERSATION WILL APPEAR HERE</div>';
 }
 
+// ── Recording ─────────────────────────────────────────────────────────────────
 async function startRecording(){
   if(isRecording)return;
   try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'});audioChunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data)};mediaRecorder.start();isRecording=true;micBtn.classList.add('recording');micStatus.textContent='LISTENING...';micStatus.className='mic-label recording'}catch(e){micStatus.textContent='MIC ACCESS DENIED'}
@@ -247,22 +252,121 @@ async function startRecording(){
 
 async function stopRecording(){
   if(!isRecording||!mediaRecorder)return;isRecording=false;micBtn.classList.remove('recording');micBtn.classList.add('processing');micStatus.textContent='THINKING...';micStatus.className='mic-label processing';
-  mediaRecorder.stop();mediaRecorder.onstop=async()=>{const audioBlob=new Blob(audioChunks,{type:'audio/webm'});mediaRecorder.stream.getTracks().forEach(t=>t.stop());await sendVoice(audioBlob);micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label'}
+  mediaRecorder.stop();mediaRecorder.onstop=async()=>{const audioBlob=new Blob(audioChunks,{type:'audio/webm'});mediaRecorder.stream.getTracks().forEach(t=>t.stop());await sendVoice(audioBlob);micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label'};
 }
 
+// ── Voice Send ────────────────────────────────────────────────────────────────
 async function sendVoice(audioBlob){
   const form=new FormData();form.append('audio',audioBlob,'recording.webm');
-  try{const res=await fetch('/api/voice',{method:'POST',body:form});if(!res.ok){const err=await res.json();addMsg('agent','Error: '+(err.detail||'Something went wrong'));return}
-  const userText=res.headers.get('X-User-Text')||'';const agentText=res.headers.get('X-Agent-Text')||'';const stt=res.headers.get('X-STT-Time')||'-';const rag=res.headers.get('X-RAG-Time')||'-';const llm=res.headers.get('X-LLM-Time')||'-';const tts=res.headers.get('X-TTS-Time')||'-';const total=res.headers.get('X-Total-Time')||'-';
-  if(userText)addMsg('user',userText);addMsg('agent',agentText,'STT '+stt+'s  RAG '+rag+'s  LLM '+llm+'s  TTS '+tts+'s  Total '+total+'s');
-  const blob=await res.blob();new Audio(URL.createObjectURL(blob)).play()}catch(e){addMsg('agent','Connection error: '+e.message)}
+  try{
+    const res=await fetch('/api/voice',{method:'POST',body:form});
+    if(!res.ok){const err=await res.json();addMsg('user','(audio)');addMsg('agent','Error: '+(err.detail||'Something went wrong'),null);return}
+    const userText=res.headers.get('X-User-Text')||'';
+    const agentText=res.headers.get('X-Agent-Text')||'';
+    const stt=res.headers.get('X-STT-Time');
+    const rag=res.headers.get('X-RAG-Time');
+    const tts=res.headers.get('X-TTS-Time');
+    const total=res.headers.get('X-Total-Time');
+    const confidence=parseFloat(res.headers.get('X-Confidence')||'0.5');
+    const grounded=res.headers.get('X-Grounded')==='True';
+    const attempts=parseInt(res.headers.get('X-Retrieval-Attempts')||'1');
+    const srcStr=res.headers.get('X-Sources')||'';
+    const sources=srcStr?srcStr.split(',').map(s=>({source:s.trim(),grade:'relevant'})).filter(s=>s.source):[];
+    if(userText)addMsg('user',userText,null);
+    addMsg('agent',agentText,{stt,rag,tts,total,confidence,grounded,attempts,sources,pipeline_trace:[]});
+    const blob=await res.blob();new Audio(URL.createObjectURL(blob)).play();
+  }catch(e){addMsg('agent','Connection error: '+e.message,null);}
 }
 
-async function sendText(){const inp=document.getElementById('textInput');const t=inp.value.trim();if(!t)return;inp.value='';addMsg('user',t);try{const form=new FormData();form.append('text',t);const res=await fetch('/api/text',{method:'POST',body:form});const d=await res.json();addMsg('agent',d.answer)}catch(e){addMsg('agent','Error: '+e.message)}}
+// ── Text Send ─────────────────────────────────────────────────────────────────
+async function sendText(){
+  const inp=document.getElementById('textInput');const t=inp.value.trim();if(!t)return;inp.value='';
+  addMsg('user',t,null);
+  try{
+    const form=new FormData();form.append('text',t);
+    const res=await fetch('/api/text',{method:'POST',body:form});
+    const d=await res.json();
+    addMsg('agent',d.answer,{
+      confidence:d.confidence,grounded:d.grounded,
+      sources:d.sources||[],pipeline_trace:d.pipeline_trace||[],
+      attempts:d.retrieval_attempts,latency:d.latency_seconds
+    });
+  }catch(e){addMsg('agent','Error: '+e.message,null);}
+}
 
-function addMsg(role,text,metrics){if(chatEmpty&&chatEmpty.parentNode)chatEmpty.remove();const d=document.createElement('div');d.className='msg';const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});let h='<div class="msg-head"><span class="msg-role '+role+'">'+(role==='user'?'YOU':'AI AGENT')+'</span><span class="msg-time">'+now+'</span></div>';h+='<div class="msg-body">'+esc(text)+'</div>';if(metrics)h+='<div class="msg-metrics"><span>'+metrics+'</span></div>';d.innerHTML=h;chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight}
+// ── Add Message ───────────────────────────────────────────────────────────────
+function addMsg(role,text,meta){
+  const chatEmpty=document.getElementById('chatEmpty');
+  if(chatEmpty&&chatEmpty.parentNode)chatEmpty.remove();
+  const d=document.createElement('div');d.className='msg';
+  const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  let h='<div class="msg-head"><span class="msg-role '+role+'">'+(role==='user'?'YOU':'AI AGENT')+'</span><span class="msg-time">'+now+'</span></div>';
+  h+='<div class="msg-body">'+esc(text)+'</div>';
 
-function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  if(role==='agent'&&meta&&meta.confidence!==undefined){
+    const conf=meta.confidence;
+    const pct=Math.round(conf*100);
+    const cls=conf>=0.8?'high':conf>=0.5?'mid':'low';
+    const grounded=meta.grounded!==false;
+
+    h+='<div class="msg-confidence"><div class="conf-row">';
+    h+='<span class="conf-label">CONFIDENCE</span>';
+    h+='<div class="conf-bar-wrap"><div class="conf-bar '+cls+'" style="width:'+pct+'%"></div></div>';
+    h+='<span class="conf-pct '+cls+'">'+pct+'%</span>&nbsp;';
+    h+='<span class="grounded-badge '+(grounded?'yes':'no')+'">'+(grounded?'✓ GROUNDED':'⚠ UNVERIFIED')+'</span>';
+    h+='</div></div>';
+
+    // Sources
+    if(meta.sources&&meta.sources.length>0){
+      h+='<div class="msg-sources">';
+      meta.sources.forEach(s=>{
+        const grade=s.grade||'';
+        const cls2=grade==='relevant'?'relevant':grade==='partially_relevant'?'partial':'';
+        const name=(s.source||s).split('/').pop().substring(0,35);
+        h+='<span class="source-badge '+cls2+'" title="'+esc(s.source||s)+'">'+esc(name)+'</span>';
+      });
+      h+='</div>';
+    }
+
+    // Pipeline trace (text only, from /api/text)
+    if(meta.pipeline_trace&&meta.pipeline_trace.length>0){
+      const tid='t'+(traceCounter++);
+      h+='<button class="pipeline-toggle" onclick="toggleTrace(\''+tid+'\')" id="btn-'+tid+'"><span class="arrow">▶</span> PIPELINE DETAILS</button>';
+      h+='<div class="pipeline-trace" id="'+tid+'">';
+      meta.pipeline_trace.forEach(step=>{
+        const label=esc(step.step||'');
+        let detail='';
+        if(step.action)detail=esc(step.action);
+        else if(step.docs_retrieved!==undefined)detail='retrieved '+step.docs_retrieved+(step.method?' via '+step.method:'');
+        else if(step.relevant!==undefined)detail='relevant: '+step.relevant+' | partial: '+step.partially_relevant+' | ignored: '+step.not_relevant;
+        else if(step.reformulated_query)detail='→ "'+esc(step.reformulated_query)+'"';
+        else if(step.confidence!==undefined)detail='confidence '+Math.round(step.confidence*100)+'%'+(step.issues&&step.issues.length?' ('+step.issues.length+' issues)':'');
+        h+='<div class="trace-step"><strong>'+label+'</strong>'+(detail?' — '+detail:'')+'</div>';
+      });
+      h+='</div>';
+    }
+
+    // Metrics row
+    const parts=[];
+    if(meta.stt)parts.push('STT '+meta.stt+'s');
+    if(meta.rag)parts.push('RAG '+meta.rag+'s');
+    if(meta.tts)parts.push('TTS '+meta.tts+'s');
+    if(meta.total)parts.push('Total '+meta.total+'s');
+    if(meta.latency)parts.push('Latency '+meta.latency+'s');
+    if(meta.attempts&&meta.attempts>1)parts.push('Attempts '+meta.attempts);
+    if(parts.length)h+='<div class="msg-metrics"><span>'+parts.join('  ')+'</span></div>';
+  }
+
+  d.innerHTML=h;chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight;
+}
+
+function toggleTrace(id){
+  const el=document.getElementById(id),btn=document.getElementById('btn-'+id);
+  if(!el||!btn)return;
+  el.classList.toggle('open');btn.classList.toggle('open');
+}
+
+function esc(t){if(t==null)return '';return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 </script>
 </body>
 </html>
