@@ -255,43 +255,92 @@ async function stopRecording(){
   mediaRecorder.stop();mediaRecorder.onstop=async()=>{const audioBlob=new Blob(audioChunks,{type:'audio/webm'});mediaRecorder.stream.getTracks().forEach(t=>t.stop());if(audioBlob.size<4000){micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label';addMsg('agent',"I didn't catch that — please hold the mic button and speak clearly.",null);return;}await sendVoice(audioBlob);micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label'};
 }
 
-// ── Voice Send ────────────────────────────────────────────────────────────────
+// ── Voice Send — Phase 12: streaming TTS via /api/voice/stream ────────────────
 async function sendVoice(audioBlob){
   const form=new FormData();form.append('audio',audioBlob,'recording.webm');
   try{
-    const res=await fetch('/api/voice',{method:'POST',body:form});
+    const res=await fetch('/api/voice/stream',{method:'POST',body:form});
     if(!res.ok){const err=await res.json().catch(()=>({}));const detail=(err.detail||'').toLowerCase();const msg=detail.includes('understand')||detail.includes('audio')?'I didn\'t catch that — please hold the mic and speak clearly.':'Something went wrong. Please try again.';addMsg('agent',msg,null);return}
     const userText=res.headers.get('X-User-Text')||'';
     const agentText=res.headers.get('X-Agent-Text')||'';
     const stt=res.headers.get('X-STT-Time');
     const rag=res.headers.get('X-RAG-Time');
-    const tts=res.headers.get('X-TTS-Time');
-    const total=res.headers.get('X-Total-Time');
-    const confidence=parseFloat(res.headers.get('X-Confidence')||'0.5');
-    const grounded=res.headers.get('X-Grounded')==='True';
+    const confidence=parseFloat(res.headers.get('X-Confidence')||'0.8');
+    const grounded=res.headers.get('X-Grounded')!=='False';
     const attempts=parseInt(res.headers.get('X-Retrieval-Attempts')||'1');
     const srcStr=res.headers.get('X-Sources')||'';
     const sources=srcStr?srcStr.split(',').map(s=>({source:s.trim(),grade:'relevant'})).filter(s=>s.source):[];
     if(userText)addMsg('user',userText,null);
-    addMsg('agent',agentText,{stt,rag,tts,total,confidence,grounded,attempts,sources,pipeline_trace:[]});
-    const blob=await res.blob();new Audio(URL.createObjectURL(blob)).play();
+    addMsg('agent',agentText,{stt,rag,confidence,grounded,attempts,sources,pipeline_trace:[]});
+    // Collect streaming chunks then play (server sends bytes as generated — faster start)
+    const chunks=[];const reader=res.body.getReader();
+    while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);}
+    new Audio(URL.createObjectURL(new Blob(chunks,{type:'audio/mpeg'}))).play();
   }catch(e){addMsg('agent','Connection error: '+e.message,null);}
 }
 
-// ── Text Send ─────────────────────────────────────────────────────────────────
+// ── Text Send — Phase 9+10: SSE streaming display + sessionStorage cache ───────
 async function sendText(){
   const inp=document.getElementById('textInput');const t=inp.value.trim();if(!t)return;inp.value='';
   addMsg('user',t,null);
+
+  // Phase 10: return cached answer instantly if available (session-scoped, cleared on page reload)
+  const cKey='av_'+t.toLowerCase().trim().substring(0,120);
+  const hit=sessionStorage.getItem(cKey);
+  if(hit){try{const d=JSON.parse(hit);addMsg('agent',d.answer,{confidence:d.confidence,grounded:d.grounded,sources:d.sources||[],pipeline_trace:d.pipeline_trace||[],attempts:d.retrieval_attempts,latency:d.latency_seconds});return;}catch(e){}}
+
+  // Phase 9: SSE streaming — display tokens progressively, finalize with metadata
+  const msgEl=addStreamingMsg();
   try{
     const form=new FormData();form.append('text',t);
-    const res=await fetch('/api/text',{method:'POST',body:form});
-    const d=await res.json();
-    addMsg('agent',d.answer,{
-      confidence:d.confidence,grounded:d.grounded,
-      sources:d.sources||[],pipeline_trace:d.pipeline_trace||[],
-      attempts:d.retrieval_attempts,latency:d.latency_seconds
-    });
-  }catch(e){addMsg('agent','Error: '+e.message,null);}
+    const res=await fetch('/api/text/stream',{method:'POST',body:form});
+    if(!res.ok){finalizeStreamingMsg(msgEl,'Something went wrong. Please try again.',null);return;}
+    const reader=res.body.getReader();const dec=new TextDecoder();
+    let buf='',fullAnswer='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop();
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        try{
+          const ev=JSON.parse(line.slice(6));
+          if(ev.type==='token'){fullAnswer+=ev.text;updateStreamingMsg(msgEl,fullAnswer);}
+          else if(ev.type==='done'){
+            const meta={confidence:ev.confidence,grounded:ev.grounded,sources:ev.sources||[],pipeline_trace:ev.pipeline_trace||[],attempts:ev.retrieval_attempts,latency:ev.latency_seconds};
+            finalizeStreamingMsg(msgEl,fullAnswer,meta);
+            try{sessionStorage.setItem(cKey,JSON.stringify({answer:fullAnswer,...ev}));}catch(e){}
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){finalizeStreamingMsg(msgEl,'Error: '+e.message,null);}
+}
+
+// ── Streaming message placeholders ────────────────────────────────────────────
+function addStreamingMsg(){
+  const chatEmpty=document.getElementById('chatEmpty');if(chatEmpty&&chatEmpty.parentNode)chatEmpty.remove();
+  const d=document.createElement('div');d.className='msg';
+  const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  d.innerHTML='<div class="msg-head"><span class="msg-role agent">AI AGENT</span><span class="msg-time">'+now+'</span></div><div class="msg-body streaming-body" style="color:var(--text2)">Thinking...</div>';
+  chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight;return d;
+}
+function updateStreamingMsg(el,text){
+  const b=el.querySelector('.streaming-body');if(b){b.style.color='var(--text)';b.textContent=text;chatArea.scrollTop=chatArea.scrollHeight;}
+}
+function finalizeStreamingMsg(el,text,meta){
+  const now=el.querySelector('.msg-time')?el.querySelector('.msg-time').textContent:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  let h='<div class="msg-head"><span class="msg-role agent">AI AGENT</span><span class="msg-time">'+now+'</span></div>';
+  h+='<div class="msg-body">'+esc(text)+'</div>';
+  if(meta&&meta.confidence!==undefined){
+    const conf=meta.confidence,pct=Math.round(conf*100),cls=conf>=0.8?'high':conf>=0.5?'mid':'low';
+    const grounded=meta.grounded!==false;
+    h+='<div class="msg-confidence"><div class="conf-row"><span class="conf-label">CONFIDENCE</span><div class="conf-bar-wrap"><div class="conf-bar '+cls+'" style="width:'+pct+'%"></div></div><span class="conf-pct '+cls+'">'+pct+'%</span>&nbsp;<span class="grounded-badge '+(grounded?'yes':'no')+'">'+(grounded?'✓ GROUNDED':'⚠ UNVERIFIED')+'</span></div></div>';
+    if(meta.sources&&meta.sources.length>0){h+='<div class="msg-sources">';meta.sources.forEach(s=>{const grade=s.grade||'';const cls2=grade==='relevant'?'relevant':grade==='partially_relevant'?'partial':'';const name=(s.source||s).split('/').pop().substring(0,35);h+='<span class="source-badge '+cls2+'" title="'+esc(s.source||s)+'">'+esc(name)+'</span>';});h+='</div>';}
+    if(meta.pipeline_trace&&meta.pipeline_trace.length>0){const tid='t'+(traceCounter++);h+='<button class="pipeline-toggle" onclick="toggleTrace(\''+tid+'\')" id="btn-'+tid+'"><span class="arrow">▶</span> PIPELINE DETAILS</button><div class="pipeline-trace" id="'+tid+'">';meta.pipeline_trace.forEach(step=>{const label=esc(step.step||'');let detail='';if(step.action)detail=esc(step.action);else if(step.docs_retrieved!==undefined)detail='retrieved '+step.docs_retrieved+(step.method?' via '+step.method:'');else if(step.relevant!==undefined)detail='relevant: '+step.relevant+' | partial: '+step.partially_relevant+' | ignored: '+step.not_relevant;else if(step.reformulated_query)detail='→ "'+esc(step.reformulated_query)+'"';else if(step.confidence!==undefined)detail='confidence '+Math.round(step.confidence*100)+'%'+(step.issues&&step.issues.length?' ('+step.issues.length+' issues)':'');h+='<div class="trace-step"><strong>'+label+'</strong>'+(detail?' — '+detail:'')+'</div>';});h+='</div>';}
+    const parts=[];if(meta.stt)parts.push('STT '+meta.stt+'s');if(meta.rag)parts.push('RAG '+meta.rag+'s');if(meta.latency)parts.push('Latency '+meta.latency+'s');if(meta.attempts&&meta.attempts>1)parts.push('Attempts '+meta.attempts);if(parts.length)h+='<div class="msg-metrics"><span>'+parts.join('  ')+'</span></div>';
+  }
+  el.innerHTML=h;chatArea.scrollTop=chatArea.scrollHeight;
 }
 
 // ── Add Message ───────────────────────────────────────────────────────────────

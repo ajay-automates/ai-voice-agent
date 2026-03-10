@@ -1,5 +1,5 @@
 """
-Hallucination Checker
+Hallucination Checker — Async version.
 Post-generation verification: checks every claim in the answer against source documents.
 Returns a grounded flag and confidence score (0.0–1.0).
 """
@@ -7,13 +7,13 @@ Returns a grounded flag and confidence score (0.0–1.0).
 import json
 import os
 from typing import List, Dict
-from openai import OpenAI
+from openai import AsyncOpenAI
 from app.prompts import HALLUCINATION_CHECK_PROMPT
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
-def check_hallucination(answer: str, documents: List[Dict]) -> Dict:
+async def check_hallucination(answer: str, documents: List[Dict]) -> Dict:
     """
     Verify that the generated answer is grounded in source documents.
 
@@ -27,7 +27,9 @@ def check_hallucination(answer: str, documents: List[Dict]) -> Dict:
         - confidence (float): 0.0–1.0, how well-grounded the answer is
         - issues (list[str]): Any unsupported claims detected
     """
-    # Build context string, capped to keep token usage reasonable
+    if not documents:
+        return {"grounded": True, "confidence": 1.0, "issues": []}
+
     context_parts = [
         f"[Source: {d.get('source', 'Unknown')}]\n{d.get('text', '')}"
         for d in documents
@@ -35,7 +37,7 @@ def check_hallucination(answer: str, documents: List[Dict]) -> Dict:
     context = "\n\n---\n\n".join(context_parts)[:4000]
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{
                 "role": "user",

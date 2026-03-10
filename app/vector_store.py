@@ -1,19 +1,26 @@
 """
-Vector Store — Chunking + OpenAI Embeddings + In-memory cosine similarity search.
+Vector Store — Async version with batch embeddings and EmbeddingCache.
+Chunking + OpenAI Embeddings + In-memory cosine similarity search.
 Lightweight: no ChromaDB, no PyTorch. Runs on Railway free tier.
+
+Phase 11: ingest_text now batches ALL chunks in a single embeddings API call.
+Phase 4:  get_embedding uses EmbeddingCache to skip repeated API calls.
 """
 
 import os
 import numpy as np
-from openai import OpenAI
+from openai import AsyncOpenAI
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+from app.cache import embedding_cache
+
+client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 # In-memory store: list of {"text": str, "source": str, "embedding": np.array}
 chunks_store: list = []
 
-CHUNK_SIZE = 500   # words (upgraded from 400 chars)
+CHUNK_SIZE = 500   # words
 CHUNK_OVERLAP = 50  # words
+EMBEDDING_BATCH_SIZE = 100  # OpenAI max is 2048 inputs, 100 is safe
 
 
 def chunk_text(text: str, source: str = "pasted_text") -> list:
@@ -32,41 +39,70 @@ def chunk_text(text: str, source: str = "pasted_text") -> list:
     return chunks
 
 
-def get_embedding(text: str) -> np.ndarray:
-    """Get OpenAI embedding for text."""
-    response = client.embeddings.create(
+async def get_embedding(text: str) -> np.ndarray:
+    """Get OpenAI embedding for text, with EmbeddingCache to skip repeat calls."""
+    cached = embedding_cache.get(text)
+    if cached is not None:
+        return cached
+
+    response = await client.embeddings.create(
         model="text-embedding-3-small",
         input=text,
     )
-    return np.array(response.data[0].embedding)
+    emb = np.array(response.data[0].embedding, dtype=np.float32)
+    embedding_cache.set(text, emb)
+    return emb
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
 
-def ingest_text(text: str, source: str = "pasted_text") -> int:
-    """Chunk text, embed with OpenAI, store in memory. Returns chunk count."""
+async def ingest_text(text: str, source: str = "pasted_text") -> int:
+    """
+    Chunk text, batch-embed with OpenAI (single API call per 100 chunks),
+    and store in memory. Returns chunk count.
+
+    Phase 11: sends all chunk texts in one embeddings.create() call
+    instead of one call per chunk — dramatically faster for large PDFs.
+    """
     global chunks_store
     new_chunks = chunk_text(text, source)
-    for chunk in new_chunks:
-        emb = get_embedding(chunk["text"])
+    if not new_chunks:
+        return 0
+
+    texts = [c["text"] for c in new_chunks]
+    all_embeddings: list = []
+
+    # Batch into groups of EMBEDDING_BATCH_SIZE
+    for i in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+        batch = texts[i:i + EMBEDDING_BATCH_SIZE]
+        response = await client.embeddings.create(
+            model="text-embedding-3-small",
+            input=batch,
+        )
+        # response.data is sorted by index
+        for emb_obj in response.data:
+            all_embeddings.append(np.array(emb_obj.embedding, dtype=np.float32))
+
+    for chunk, emb in zip(new_chunks, all_embeddings):
         chunks_store.append({
             "text": chunk["text"],
             "source": chunk["source"],
             "embedding": emb,
         })
+
     return len(new_chunks)
 
 
-def retrieve(query: str, k: int = 5) -> list:
+async def retrieve(query: str, k: int = 5) -> list:
     """
-    Find top-k most similar chunks to query.
+    Find top-k most similar chunks to query via cosine similarity.
     Returns list of dicts: {"text", "source", "relevance_score"}
     """
     if not chunks_store:
         return []
-    query_emb = get_embedding(query)
+    query_emb = await get_embedding(query)
     scored = []
     for chunk in chunks_store:
         sim = cosine_similarity(query_emb, chunk["embedding"])
@@ -79,9 +115,9 @@ def retrieve(query: str, k: int = 5) -> list:
     return scored[:k]
 
 
-def get_context_for_query(query: str, k: int = 5) -> tuple:
+async def get_context_for_query(query: str, k: int = 5) -> tuple:
     """Get formatted context string + sources list for direct LLM use."""
-    results = retrieve(query, k)
+    results = await retrieve(query, k)
     if not results:
         return "No relevant documents found.", []
     parts = []

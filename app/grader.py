@@ -1,21 +1,24 @@
 """
-Document Relevance Grader
-Uses GPT-4o-mini to evaluate whether each retrieved document actually answers the user's question.
-This is the key step that makes agentic RAG smarter than basic RAG — embedding similarity != relevance.
+Document Relevance Grader — Batch version.
+Grades ALL retrieved documents in ONE LLM call instead of 1 call per doc.
+Saves ~3 seconds vs the sequential approach (5 docs × ~600ms each).
 """
 
 import json
 import os
 from typing import List, Dict, Tuple
-from openai import OpenAI
-from app.prompts import GRADER_PROMPT
+from openai import AsyncOpenAI
+from langsmith import traceable
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+from app.cache import grade_cache
+
+client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
-def grade_documents(question: str, documents: List[Dict]) -> List[Dict]:
+@traceable(name="grade_documents_batch", run_type="llm")
+async def grade_documents(question: str, documents: List[Dict]) -> List[Dict]:
     """
-    Grade each retrieved document for relevance to the question.
+    Grade ALL documents in a single LLM call.
 
     Args:
         question: User's question
@@ -25,36 +28,65 @@ def grade_documents(question: str, documents: List[Dict]) -> List[Dict]:
         Same list with 'grade' and 'grade_reason' added to each doc.
         grade values: "relevant" | "partially_relevant" | "not_relevant"
     """
-    graded = []
-    for doc in documents:
-        doc_text = doc.get("text", "")[:1200]  # cap tokens per doc
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{
-                    "role": "user",
-                    "content": GRADER_PROMPT.format(
-                        document=doc_text,
-                        question=question,
-                    ),
-                }],
-                temperature=0.1,
-                max_tokens=120,
-            )
-            raw = response.choices[0].message.content.strip()
-            # Strip markdown code fences if present
-            if raw.startswith("```"):
-                raw = raw.split("```")[1].replace("json", "").strip()
-            result = json.loads(raw)
-            doc = dict(doc)  # copy so we don't mutate caller's list
-            doc["grade"] = result.get("relevance", "partially_relevant")
-            doc["grade_reason"] = result.get("reason", "")
-        except Exception as e:
-            doc = dict(doc)
-            doc["grade"] = "partially_relevant"
-            doc["grade_reason"] = f"Grading error: {str(e)}"
-        graded.append(doc)
-    return graded
+    if not documents:
+        return []
+
+    # Cache key: question + fingerprint of all doc texts
+    docs_fingerprint = "".join(d.get("text", "")[:80] for d in documents)
+    cached = grade_cache.get(question, docs_fingerprint)
+    if cached is not None:
+        return cached
+
+    # Build a single prompt with all docs
+    docs_text = ""
+    for i, doc in enumerate(documents):
+        doc_text = doc.get("text", "")[:1000]
+        docs_text += f"[Doc {i + 1}]:\n{doc_text}\n\n"
+
+    batch_prompt = f"""Grade each document for relevance to the question.
+
+Question: {question}
+
+Documents:
+{docs_text}
+Respond with ONLY a JSON array (one entry per doc, in order), no other text:
+[
+  {{"relevance": "relevant|partially_relevant|not_relevant", "reason": "one sentence"}},
+  ...
+]"""
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": batch_prompt}],
+            temperature=0.1,
+            max_tokens=400,
+        )
+        raw = response.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1].replace("json", "").strip()
+        grades = json.loads(raw)
+
+        graded = []
+        for i, doc in enumerate(documents):
+            d = dict(doc)
+            if i < len(grades):
+                d["grade"] = grades[i].get("relevance", "partially_relevant")
+                d["grade_reason"] = grades[i].get("reason", "")
+            else:
+                d["grade"] = "partially_relevant"
+                d["grade_reason"] = "Grading incomplete"
+            graded.append(d)
+
+        grade_cache.set(question, docs_fingerprint, graded)
+        return graded
+
+    except Exception as e:
+        # Fallback: mark all as partially_relevant so pipeline continues
+        return [
+            {**dict(doc), "grade": "partially_relevant", "grade_reason": f"Grading error: {str(e)[:50]}"}
+            for doc in documents
+        ]
 
 
 def count_relevant_documents(graded_docs: List[Dict]) -> Tuple[int, int, int]:
