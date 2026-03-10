@@ -252,7 +252,7 @@ async function startRecording(){
 
 async function stopRecording(){
   if(!isRecording||!mediaRecorder)return;isRecording=false;micBtn.classList.remove('recording');micBtn.classList.add('processing');micStatus.textContent='THINKING...';micStatus.className='mic-label processing';
-  mediaRecorder.stop();mediaRecorder.onstop=async()=>{const audioBlob=new Blob(audioChunks,{type:'audio/webm'});mediaRecorder.stream.getTracks().forEach(t=>t.stop());await sendVoice(audioBlob);micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label'};
+  mediaRecorder.stop();mediaRecorder.onstop=async()=>{const audioBlob=new Blob(audioChunks,{type:'audio/webm'});mediaRecorder.stream.getTracks().forEach(t=>t.stop());if(audioBlob.size<4000){micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label';addMsg('agent',"I didn't catch that — please hold the mic button and speak clearly.",null);return;}await sendVoice(audioBlob);micBtn.classList.remove('processing');micStatus.textContent='HOLD TO SPEAK';micStatus.className='mic-label'};
 }
 
 // ── Voice Send ────────────────────────────────────────────────────────────────
@@ -260,7 +260,7 @@ async function sendVoice(audioBlob){
   const form=new FormData();form.append('audio',audioBlob,'recording.webm');
   try{
     const res=await fetch('/api/voice',{method:'POST',body:form});
-    if(!res.ok){const err=await res.json();addMsg('user','(audio)');addMsg('agent','Error: '+(err.detail||'Something went wrong'),null);return}
+    if(!res.ok){const err=await res.json().catch(()=>({}));const detail=(err.detail||'').toLowerCase();const msg=detail.includes('understand')||detail.includes('audio')?'I didn\'t catch that — please hold the mic and speak clearly.':'Something went wrong. Please try again.';addMsg('agent',msg,null);return}
     const userText=res.headers.get('X-User-Text')||'';
     const agentText=res.headers.get('X-Agent-Text')||'';
     const stt=res.headers.get('X-STT-Time');

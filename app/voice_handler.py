@@ -15,15 +15,20 @@ client = wrap_openai(raw_client)
 
 @traceable(name="whisper_transcribe", run_type="llm")
 def transcribe_audio(audio_bytes: bytes) -> str:
-    """Transcribe audio bytes using OpenAI Whisper. Returns text."""
-    audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = "recording.webm"
-    transcript = raw_client.audio.transcriptions.create(
-        model="whisper-1",
-        file=audio_file,
-        language="en",
-    )
-    return transcript.text.strip()
+    """Transcribe audio bytes using OpenAI Whisper. Returns text or empty string."""
+    if len(audio_bytes) < 1000:
+        return ""
+    try:
+        audio_file = io.BytesIO(audio_bytes)
+        audio_file.name = "recording.webm"
+        transcript = raw_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            language="en",
+        )
+        return transcript.text.strip()
+    except Exception:
+        return ""
 
 
 @traceable(name="generate_speech", run_type="tool")
